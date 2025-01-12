@@ -69,15 +69,16 @@ func doUpdate(ppApi *api.PodPointApi, mqttClient *MqttClientWrapper) {
 		mqttClient.publish(fmt.Sprintf("%s/last_contact", prefix), pod.LastContactTime)
 
 		// model details
-		mqttClient.publish(fmt.Sprintf("%s/model_id", prefix), pod.Model.ID)
-		mqttClient.publish(fmt.Sprintf("%s/model_name", prefix), pod.Model.Name)
-		mqttClient.publish(fmt.Sprintf("%s/model_vendor", prefix), pod.Model.Vendor)
-		mqttClient.publish(fmt.Sprintf("%s/model_image_url", prefix), pod.Model.ImageUrl)
+		mqttClient.publish(fmt.Sprintf("%s/model/id", prefix), pod.Model.ID)
+		mqttClient.publish(fmt.Sprintf("%s/model/name", prefix), pod.Model.Name)
+		mqttClient.publish(fmt.Sprintf("%s/model/vendor", prefix), pod.Model.Vendor)
+		mqttClient.publish(fmt.Sprintf("%s/model/image_url", prefix), pod.Model.ImageUrl)
 
 		// connector details
 		for _, connector := range pod.Connectors {
 			c := connector.Connector
 			connectorPrefix := fmt.Sprintf("%s/connectors/%d", prefix, c.ID)
+
 			mqttClient.publish(fmt.Sprintf("%s/id", connectorPrefix), c.ID)
 			mqttClient.publish(fmt.Sprintf("%s/door", connectorPrefix), c.Door)
 			mqttClient.publish(fmt.Sprintf("%s/door_id", connectorPrefix), c.DoorID)
@@ -86,36 +87,39 @@ func doUpdate(ppApi *api.PodPointApi, mqttClient *MqttClientWrapper) {
 			mqttClient.publish(fmt.Sprintf("%s/voltage", connectorPrefix), c.Voltage)
 			mqttClient.publish(fmt.Sprintf("%s/charging_method", connectorPrefix), c.ChargeMethod)
 			mqttClient.publish(fmt.Sprintf("%s/has_cable", connectorPrefix), c.HasCable)
-			mqttClient.publish(fmt.Sprintf("%s/socket_type", connectorPrefix), c.Socket.Type)
-			mqttClient.publish(fmt.Sprintf("%s/socket_description", connectorPrefix), c.Socket.Description)
-			mqttClient.publish(fmt.Sprintf("%s/socket_ocpp_name", connectorPrefix), c.Socket.OCPPName)
-			mqttClient.publish(fmt.Sprintf("%s/socket_ocpp_code", connectorPrefix), c.Socket.OCPPCode)
+
+			mqttClient.publish(fmt.Sprintf("%s/socket/type", connectorPrefix), c.Socket.Type)
+			mqttClient.publish(fmt.Sprintf("%s/socket/description", connectorPrefix), c.Socket.Description)
+			mqttClient.publish(fmt.Sprintf("%s/socket/ocpp_name", connectorPrefix), c.Socket.OCPPName)
+			mqttClient.publish(fmt.Sprintf("%s/socket/ocpp_code", connectorPrefix), c.Socket.OCPPCode)
 
 			status, ok := doorStatus[c.DoorID]
 			if !ok {
 				l.Warn("No status found for door", "doorID", c.DoorID)
-				continue
+				mqttClient.publish(fmt.Sprintf("%s/status", connectorPrefix), "")
+			} else {
+				mqttClient.publish(fmt.Sprintf("%s/status", connectorPrefix), status.KeyName)
 			}
-
-			mqttClient.publish(fmt.Sprintf("%s/status_name", connectorPrefix), status.Name)
-			mqttClient.publish(fmt.Sprintf("%s/status_key", connectorPrefix), status.KeyName)
-			mqttClient.publish(fmt.Sprintf("%s/status_label", connectorPrefix), status.Label)
 		}
 
 		// schedule details
 		for _, schedule := range pod.ChargeSchedules {
-			schedulePrefix := fmt.Sprintf("%s/charging_schedules/%d", prefix, schedule.Day)
+			schedulePrefix := fmt.Sprintf("%s/charging/schedules/%d", prefix, schedule.Day)
 			mqttClient.publish(fmt.Sprintf("%s/start_time", schedulePrefix), schedule.StartTime)
 			mqttClient.publish(fmt.Sprintf("%s/end_time", schedulePrefix), schedule.EndTime)
 			mqttClient.publish(fmt.Sprintf("%s/active", schedulePrefix), schedule.Status.Active)
 		}
 
 		if pod.ChargeOveride != nil {
-			mqttClient.publish(fmt.Sprintf("%s/charging_override_exists", prefix), true)
-			mqttClient.publish(fmt.Sprintf("%s/charging_override_ends_at", prefix), pod.ChargeOveride.EndsAt)
+			mqttClient.publish(fmt.Sprintf("%s/charging/override/exists", prefix), true)
+			if pod.ChargeOveride.EndsAt.IsZero() {
+				mqttClient.publish(fmt.Sprintf("%s/charging/override/ends_at", prefix), "")
+			} else {
+				mqttClient.publish(fmt.Sprintf("%s/charging/override/ends_at", prefix), pod.ChargeOveride.EndsAt)
+			}
 		} else {
-			mqttClient.publish(fmt.Sprintf("%s/charging_override_exists", prefix), false)
-			mqttClient.publish(fmt.Sprintf("%s/charging_override_ends_at", prefix), "")
+			mqttClient.publish(fmt.Sprintf("%s/charging/override/exists", prefix), false)
+			mqttClient.publish(fmt.Sprintf("%s/charging/override/ends_at", prefix), "")
 		}
 
 		// charging mode logic:
@@ -136,7 +140,7 @@ func doUpdate(ppApi *api.PodPointApi, mqttClient *MqttClientWrapper) {
 				chargeMode = "SCHEDULE"
 			}
 		}
-		mqttClient.publish(fmt.Sprintf("%s/charging_mode", prefix), chargeMode)
+		mqttClient.publish(fmt.Sprintf("%s/charging/mode", prefix), chargeMode)
 
 		// schedule logic:
 		// - if the schedule for today IS NOT active, charging is allowed all day
@@ -159,7 +163,7 @@ func doUpdate(ppApi *api.PodPointApi, mqttClient *MqttClientWrapper) {
 
 			chargingAllowedBySchedule = schedule.StartTime <= timeStr && schedule.EndTime >= timeStr
 		}
-		mqttClient.publish(fmt.Sprintf("%s/charging_allowed_by_schedule", prefix), chargingAllowedBySchedule)
+		mqttClient.publish(fmt.Sprintf("%s/charging/allowed_by_schedule", prefix), chargingAllowedBySchedule)
 
 		// overall, is charging allowed right now?
 		chargingAllowed := false
@@ -168,7 +172,7 @@ func doUpdate(ppApi *api.PodPointApi, mqttClient *MqttClientWrapper) {
 		} else {
 			chargingAllowed = true
 		}
-		mqttClient.publish(fmt.Sprintf("%s/charging_allowed", prefix), chargingAllowed)
+		mqttClient.publish(fmt.Sprintf("%s/charging/allowed", prefix), chargingAllowed)
 	}
 
 	mqttClient.publish("_meta/last_seen", now.Format(time.RFC3339))
