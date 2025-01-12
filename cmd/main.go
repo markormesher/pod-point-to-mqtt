@@ -25,7 +25,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	ppApi := api.NewApi(s)
+	ppApi, err := api.NewApi(s)
+	if err != nil {
+		l.Error("Error setting up Pod-Point API", "error", err)
+		os.Exit(1)
+	}
 
 	if s.UpdateInterval <= 0 {
 		l.Info("Running once then exiting because update interval is <= 0")

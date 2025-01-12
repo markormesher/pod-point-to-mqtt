@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -16,8 +15,9 @@ var l = logging.Logger
 
 var (
 	podpointApiBaseUrl = "https://mobile-api.pod-point.com/api3/v5"
-	googleApiBaseUrl   = "https://www.googleapis.com/identitytoolkit/v3/relyingparty"
 	googleApiKey       = "AIzaSyCwhF8IOl_7qHXML0pOd5HmziYP46IZAGU"
+	googleLoginUrl     = "https://googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=" + googleApiKey
+	googleRefreshUrl   = "https://securetoken.googleapis.com/v1/token?key=" + googleApiKey
 )
 
 type PodPointApi struct {
@@ -29,69 +29,28 @@ type PodPointApi struct {
 	refreshToken   string
 }
 
-func NewApi(s settings.Settings) PodPointApi {
-	return PodPointApi{
+func NewApi(s settings.Settings) (PodPointApi, error) {
+	api := PodPointApi{
 		s:      s,
 		client: resty.New(),
 	}
-}
 
-func (api *PodPointApi) loadAuthToken() error {
-	// already got a valid token?
-	if api.apiToken != "" && time.Now().Before(api.apiTokenExpiry) {
-		return nil
-	}
-
-	// TODO: refresh existing token
-
-	// otherwise, fetch a token from scratch
-	url := fmt.Sprintf("%s/verifyPassword?key=%s", googleApiBaseUrl, googleApiKey)
-	payload := map[string]any{
-		"email":             api.s.PodPointUsername,
-		"password":          api.s.PodPointPassword,
-		"returnSecureToken": true,
-	}
-
-	l.Info("Fetching new API token")
-
-	req := api.getPlainReqeust()
-	req.SetBody(payload)
-	res, err := req.Post(url)
+	err := api.loadSavedAuthDetails()
 	if err != nil {
-		return fmt.Errorf("error getting auth token: %w", err)
+		l.Warn("Error loading persisted auth details - continuing without them", "error", err)
 	}
 
-	if res.StatusCode() != http.StatusOK {
-		return fmt.Errorf("error getting auth token: status %d", res.StatusCode())
-	}
-
-	type authResponse struct {
-		Kind         string `json:"kind"`
-		ApiToken     string `json:"idToken"`
-		RefreshToken string `json:"refreshToken"`
-		ExpiresIn    string `json:"expiresIn"`
-	}
-
-	var resParsed authResponse
-	err = json.Unmarshal(res.Body(), &resParsed)
+	err = api.loadAuthToken()
 	if err != nil {
-		return fmt.Errorf("error parsing auth response: %w", err)
+		return PodPointApi{}, fmt.Errorf("error getting an auth token: %w", err)
 	}
 
-	expiresInParsed, err := strconv.Atoi(resParsed.ExpiresIn)
+	err = api.loadUserId()
 	if err != nil {
-		return fmt.Errorf("error parsing auth response: expiry '%s' could not be converted to an int", resParsed.ExpiresIn)
+		return PodPointApi{}, fmt.Errorf("error loading user ID: %w", err)
 	}
 
-	if resParsed.Kind != "identitytoolkit#VerifyPasswordResponse" {
-		return fmt.Errorf("unsupported auth response '%s' (maybe MFA?)", resParsed.Kind)
-	}
-
-	api.apiToken = resParsed.ApiToken
-	api.apiTokenExpiry = time.Now().Add(time.Second * time.Duration(expiresInParsed)).Add(time.Second * -10)
-	api.refreshToken = resParsed.RefreshToken
-
-	return nil
+	return api, nil
 }
 
 func (api *PodPointApi) loadUserId() error {

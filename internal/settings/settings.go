@@ -13,6 +13,7 @@ type Settings struct {
 	UpdateInterval       int
 	PodPointUsername     string
 	PodPointPassword     string
+	DataDir              string
 }
 
 func GetSettings() (Settings, error) {
@@ -38,11 +39,22 @@ func GetSettings() (Settings, error) {
 	podPointUsername := os.Getenv("POD_POINT_USERNAME")
 	podPointPassword := os.Getenv("POD_POINT_PASSWORD")
 
+	dataDir := os.Getenv("DATA_DIR")
+	dataDirStat, err := os.Stat(dataDir)
+	if err != nil {
+		return Settings{}, fmt.Errorf("could not stat data directory: %w", err)
+	}
+
+	if !dataDirStat.IsDir() {
+		return Settings{}, fmt.Errorf("data dir '%s' is not a directory", dataDir)
+	}
+
 	return Settings{
 		MqttConnectionString: mqttConnectionString,
 		MqttTopicPrefix:      mqttTopicPrefix,
 		UpdateInterval:       updateInterval,
 		PodPointUsername:     podPointUsername,
 		PodPointPassword:     podPointPassword,
+		DataDir:              dataDir,
 	}, nil
 }
