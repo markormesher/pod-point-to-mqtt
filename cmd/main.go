@@ -38,7 +38,7 @@ func main() {
 		l.Info("Running forever", "interval", s.UpdateInterval)
 		for {
 			doUpdate(&ppApi, mqttClient)
-			time.Sleep(time.Duration(s.UpdateInterval * int(time.Second)))
+			time.Sleep(time.Duration(s.UpdateInterval) * time.Second)
 		}
 	}
 }
