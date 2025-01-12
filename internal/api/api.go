@@ -16,7 +16,7 @@ var l = logging.Logger
 var (
 	podpointApiBaseUrl = "https://mobile-api.pod-point.com/api3/v5"
 	googleApiKey       = "AIzaSyCwhF8IOl_7qHXML0pOd5HmziYP46IZAGU"
-	googleLoginUrl     = "https://googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=" + googleApiKey
+	googleLoginUrl     = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=" + googleApiKey
 	googleRefreshUrl   = "https://securetoken.googleapis.com/v1/token?key=" + googleApiKey
 )
 
