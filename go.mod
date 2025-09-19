@@ -3,7 +3,7 @@ module github.com/markormesher/pod-point-to-mqtt
 go 1.25.1
 
 require (
-	github.com/eclipse/paho.mqtt.golang v1.5.0
+	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/go-resty/resty/v2 v2.16.5
 )
 
@@ -13,8 +13,8 @@ require (
 	github.com/kisielk/errcheck v1.9.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/mod v0.23.0 // indirect
-	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/net v0.44.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
 	honnef.co/go/tools v0.6.1 // indirect
 )
