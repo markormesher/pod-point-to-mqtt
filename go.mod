@@ -4,7 +4,7 @@ go 1.25.3
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
-	github.com/go-resty/resty/v2 v2.17.0
+	github.com/go-resty/resty/v2 v2.17.1
 )
 
 require (
