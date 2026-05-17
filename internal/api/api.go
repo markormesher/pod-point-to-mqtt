@@ -3,11 +3,11 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
 
-	"github.com/go-resty/resty/v2"
 	"github.com/markormesher/pod-point-to-mqtt/internal/settings"
 )
 
@@ -20,7 +20,7 @@ var (
 
 type PodPointAPI struct {
 	s              settings.Settings
-	client         *resty.Client
+	client         *http.Client
 	userID         int
 	apiToken       string
 	apiTokenExpiry time.Time
@@ -29,8 +29,10 @@ type PodPointAPI struct {
 
 func NewAPI(s settings.Settings) (PodPointAPI, error) {
 	api := PodPointAPI{
-		s:      s,
-		client: resty.New(),
+		s: s,
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 	}
 
 	err := api.loadSavedAuthDetails()
@@ -58,19 +60,19 @@ func (api *PodPointAPI) loadUserID() error {
 
 	slog.Info("fetching user ID")
 
-	req, err := api.getAuthedReqeust()
-	if err != nil {
-		return fmt.Errorf("error getting user ID: %w", err)
-	}
-
 	url := fmt.Sprintf("%s/auth", podpointAPIBaseURL)
-	res, err := req.Get(url)
+	req, err := api.authedReqeust("GET", url, nil)
 	if err != nil {
 		return fmt.Errorf("error getting user ID: %w", err)
 	}
 
-	if res.StatusCode() != http.StatusOK {
-		return fmt.Errorf("error getting user ID: status %d", res.StatusCode())
+	res, err := api.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error getting user ID: %w", err)
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("error getting user ID: %s", res.Status)
 	}
 
 	type accountResponse struct {
@@ -80,7 +82,8 @@ func (api *PodPointAPI) loadUserID() error {
 	}
 
 	var resParsed accountResponse
-	err = json.Unmarshal(res.Body(), &resParsed)
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resParsed)
 	if err != nil {
 		return fmt.Errorf("error parsing account response: %w", err)
 	}
@@ -98,29 +101,28 @@ func (api *PodPointAPI) GetPods() ([]Pod, error) {
 		return nil, fmt.Errorf("error getting pods: %w", err)
 	}
 
-	req, err := api.getAuthedReqeust()
-	if err != nil {
-		return nil, fmt.Errorf("error getting pods: %w", err)
-	}
-
 	url := fmt.Sprintf("%s/users/%d/pods?perpage=all&include=statuses,model,unit_connectors,charge_schedules,charge_override", podpointAPIBaseURL, api.userID)
-	res, err := req.Get(url)
+	req, err := api.authedReqeust("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting pods: %w", err)
 	}
 
-	if res.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("error getting pods: status %d", res.StatusCode())
+	res, err := api.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error getting pods: %w", err)
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("error getting pods: %s", res.Status)
 	}
 
 	type podsResponse struct {
 		Pods []Pod `json:"pods"`
 	}
 
-	body := res.Body()
-
 	var resParsed podsResponse
-	err = json.Unmarshal(body, &resParsed)
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resParsed)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing pods response: %w", err)
 	}
@@ -145,22 +147,29 @@ func (api *PodPointAPI) GetPods() ([]Pod, error) {
 	return resParsed.Pods, nil
 }
 
-func (api *PodPointAPI) getPlainReqeust() *resty.Request {
-	req := api.client.NewRequest()
-	req.SetHeader("content-type", "application/json; charset=UTF-8")
+func (api *PodPointAPI) unauthedReqeust(method string, url string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("error building request: %w", err)
+	}
 
-	return req
+	req.Header.Add("content-type", "application/json; charset=UTF-8")
+
+	return req, nil
 }
 
-func (api *PodPointAPI) getAuthedReqeust() (*resty.Request, error) {
+func (api *PodPointAPI) authedReqeust(method string, url string, body io.Reader) (*http.Request, error) {
 	err := api.loadAuthToken()
-
 	if err != nil {
 		return nil, err
 	}
 
-	req := api.getPlainReqeust()
-	req.SetHeader("authorization", fmt.Sprintf("Bearer %s", api.apiToken))
+	req, err := api.unauthedReqeust(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("authorization", fmt.Sprintf("Bearer %s", api.apiToken))
 
 	return req, nil
 }

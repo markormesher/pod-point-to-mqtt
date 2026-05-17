@@ -93,7 +93,7 @@ func doUpdate(ppAPI *api.PodPointAPI, mqttClient *MQTTClientWrapper) {
 
 			status, ok := doorStatus[c.DoorID]
 			if !ok {
-				slog.Warn("No status found for door", "doorID", c.DoorID)
+				slog.Warn("no status found for door", "doorID", c.DoorID)
 				mqttClient.publish(fmt.Sprintf("%s/status", connectorPrefix), "")
 			} else {
 				mqttClient.publish(fmt.Sprintf("%s/status", connectorPrefix), status.KeyName)

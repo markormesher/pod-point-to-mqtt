@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -112,16 +113,23 @@ func (api *PodPointAPI) loadTokenViaLogin() error {
 		"password":          api.s.PodPointPassword,
 		"returnSecureToken": true,
 	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("error building payload: %w", err)
+	}
 
-	req := api.getPlainReqeust()
-	req.SetBody(payload)
-	res, err := req.Post(googleLoginURL)
+	req, err := api.unauthedReqeust("POST", googleLoginURL, bytes.NewReader(payloadBytes))
 	if err != nil {
 		return fmt.Errorf("error logging in: %w", err)
 	}
 
-	if res.StatusCode() != http.StatusOK {
-		return fmt.Errorf("error logging in: status %d", res.StatusCode())
+	res, err := api.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error logging in: %w", err)
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("error logging in: %s", res.Status)
 	}
 
 	type loginResponse struct {
@@ -132,7 +140,8 @@ func (api *PodPointAPI) loadTokenViaLogin() error {
 	}
 
 	var resParsed loginResponse
-	err = json.Unmarshal(res.Body(), &resParsed)
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resParsed)
 	if err != nil {
 		return fmt.Errorf("error parsing login response: %w", err)
 	}
@@ -158,26 +167,30 @@ func (api *PodPointAPI) loadTokenViaRefresh() error {
 
 	payload := fmt.Sprintf("grant_type=refresh_token&refresh_token=%s", api.refreshToken)
 
-	req := api.getPlainReqeust()
-	req.SetHeader("content-type", "application/x-www-form-urlencoded")
-	req.SetBody(payload)
-	res, err := req.Post(googleRefreshURL)
+	req, err := api.unauthedReqeust("POST", googleRefreshURL, bytes.NewReader([]byte(payload)))
+	if err != nil {
+		return fmt.Errorf("error logging in: %w", err)
+	}
+	req.Header.Add("content-type", "application/x-www-form-urlencoded")
+
+	res, err := api.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error refreshing auth token: %w", err)
 	}
 
-	if res.StatusCode() != http.StatusOK {
-		return fmt.Errorf("error refreshing auth token: status %d", res.StatusCode())
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("error refreshing auth token: %s", res.Status)
 	}
 
 	type refreshResponse struct {
-		ApiToken     string `json:"id_token"`
+		APIToken     string `json:"id_token"`
 		RefreshToken string `json:"refresh_token"`
 		ExpiresIn    string `json:"expires_in"`
 	}
 
 	var resParsed refreshResponse
-	err = json.Unmarshal(res.Body(), &resParsed)
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resParsed)
 	if err != nil {
 		return fmt.Errorf("error parsing token refresh response: %w", err)
 	}
@@ -187,7 +200,7 @@ func (api *PodPointAPI) loadTokenViaRefresh() error {
 		return fmt.Errorf("error parsing token refresh response: expiry '%s' could not be converted to an int", resParsed.ExpiresIn)
 	}
 
-	api.apiToken = resParsed.ApiToken
+	api.apiToken = resParsed.APIToken
 	api.apiTokenExpiry = time.Now().Add(time.Second * time.Duration(expiresInParsed)).Add(time.Second * -10)
 	api.refreshToken = resParsed.RefreshToken
 
