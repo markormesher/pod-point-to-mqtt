@@ -2,53 +2,51 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
 	"github.com/markormesher/pod-point-to-mqtt/internal/api"
-	"github.com/markormesher/pod-point-to-mqtt/internal/logging"
 	"github.com/markormesher/pod-point-to-mqtt/internal/settings"
 )
-
-var l = logging.Logger
 
 func main() {
 	s, err := settings.GetSettings()
 	if err != nil {
-		l.Error("Error getting settings", "error", err)
+		slog.Error("error getting settings", "error", err)
 		os.Exit(1)
 	}
 
-	mqttClient, err := setupMqttClient(s)
+	mqttClient, err := setupMQTTClient(s)
 	if err != nil {
-		l.Error("Error setting up MQTT client", "error", err)
+		slog.Error("error setting up MQTT client", "error", err)
 		os.Exit(1)
 	}
 
-	ppApi, err := api.NewApi(s)
+	ppAPI, err := api.NewAPI(s)
 	if err != nil {
-		l.Error("Error setting up Pod-Point API", "error", err)
+		slog.Error("error setting up Pod-Point API", "error", err)
 		os.Exit(1)
 	}
 
 	if s.UpdateInterval <= 0 {
-		l.Info("Running once then exiting because update interval is <= 0")
-		doUpdate(&ppApi, mqttClient)
+		slog.Info("running once then exiting because update interval is <= 0")
+		doUpdate(&ppAPI, mqttClient)
 	} else {
-		l.Info("Running forever", "interval", s.UpdateInterval)
+		slog.Info("running forever", "interval", s.UpdateInterval)
 		for {
-			doUpdate(&ppApi, mqttClient)
+			doUpdate(&ppAPI, mqttClient)
 			time.Sleep(time.Duration(s.UpdateInterval) * time.Second)
 		}
 	}
 }
 
-func doUpdate(ppApi *api.PodPointApi, mqttClient *MqttClientWrapper) {
+func doUpdate(ppAPI *api.PodPointAPI, mqttClient *MQTTClientWrapper) {
 	now := time.Now()
 
-	pods, err := ppApi.GetPods()
+	pods, err := ppAPI.GetPods()
 	if err != nil {
-		l.Error("Error getting pods", "error", err)
+		slog.Error("error getting pods", "error", err)
 		return
 	}
 
@@ -72,7 +70,7 @@ func doUpdate(ppApi *api.PodPointApi, mqttClient *MqttClientWrapper) {
 		mqttClient.publish(fmt.Sprintf("%s/model/id", prefix), pod.Model.ID)
 		mqttClient.publish(fmt.Sprintf("%s/model/name", prefix), pod.Model.Name)
 		mqttClient.publish(fmt.Sprintf("%s/model/vendor", prefix), pod.Model.Vendor)
-		mqttClient.publish(fmt.Sprintf("%s/model/image_url", prefix), pod.Model.ImageUrl)
+		mqttClient.publish(fmt.Sprintf("%s/model/image_url", prefix), pod.Model.ImageURL)
 
 		// connector details
 		for _, connector := range pod.Connectors {
@@ -95,7 +93,7 @@ func doUpdate(ppApi *api.PodPointApi, mqttClient *MqttClientWrapper) {
 
 			status, ok := doorStatus[c.DoorID]
 			if !ok {
-				l.Warn("No status found for door", "doorID", c.DoorID)
+				slog.Warn("no status found for door", "doorID", c.DoorID)
 				mqttClient.publish(fmt.Sprintf("%s/status", connectorPrefix), "")
 			} else {
 				mqttClient.publish(fmt.Sprintf("%s/status", connectorPrefix), status.KeyName)

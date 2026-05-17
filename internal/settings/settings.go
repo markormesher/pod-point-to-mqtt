@@ -8,8 +8,8 @@ import (
 )
 
 type Settings struct {
-	MqttConnectionString string
-	MqttTopicPrefix      string
+	MQTTConnectionString string
+	MQTTTopicPrefix      string
 	UpdateInterval       int
 	PodPointUsername     string
 	PodPointPassword     string
@@ -50,8 +50,8 @@ func GetSettings() (Settings, error) {
 	}
 
 	return Settings{
-		MqttConnectionString: mqttConnectionString,
-		MqttTopicPrefix:      mqttTopicPrefix,
+		MQTTConnectionString: mqttConnectionString,
+		MQTTTopicPrefix:      mqttTopicPrefix,
 		UpdateInterval:       updateInterval,
 		PodPointUsername:     podPointUsername,
 		PodPointPassword:     podPointPassword,
