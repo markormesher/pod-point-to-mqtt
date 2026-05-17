@@ -3,69 +3,67 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/markormesher/pod-point-to-mqtt/internal/logging"
 	"github.com/markormesher/pod-point-to-mqtt/internal/settings"
 )
 
-var l = logging.Logger
-
 var (
-	podpointApiBaseUrl = "https://mobile-api.pod-point.com/api3/v5"
-	googleApiKey       = "AIzaSyCwhF8IOl_7qHXML0pOd5HmziYP46IZAGU"
-	googleLoginUrl     = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=" + googleApiKey
-	googleRefreshUrl   = "https://securetoken.googleapis.com/v1/token?key=" + googleApiKey
+	podpointAPIBaseURL = "https://mobile-api.pod-point.com/api3/v5"
+	googleAPIKey       = "AIzaSyCwhF8IOl_7qHXML0pOd5HmziYP46IZAGU"
+	googleLoginURL     = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=" + googleAPIKey
+	googleRefreshURL   = "https://securetoken.googleapis.com/v1/token?key=" + googleAPIKey
 )
 
-type PodPointApi struct {
+type PodPointAPI struct {
 	s              settings.Settings
 	client         *resty.Client
-	userId         int
+	userID         int
 	apiToken       string
 	apiTokenExpiry time.Time
 	refreshToken   string
 }
 
-func NewApi(s settings.Settings) (PodPointApi, error) {
-	api := PodPointApi{
+func NewAPI(s settings.Settings) (PodPointAPI, error) {
+	api := PodPointAPI{
 		s:      s,
 		client: resty.New(),
 	}
 
 	err := api.loadSavedAuthDetails()
 	if err != nil {
-		l.Warn("Error loading persisted auth details - continuing without them", "error", err)
+		slog.Warn("error loading persisted auth details - continuing without them", "error", err)
 	}
 
 	err = api.loadAuthToken()
 	if err != nil {
-		return PodPointApi{}, fmt.Errorf("error getting an auth token: %w", err)
+		return PodPointAPI{}, fmt.Errorf("error getting an auth token: %w", err)
 	}
 
-	err = api.loadUserId()
+	err = api.loadUserID()
 	if err != nil {
-		return PodPointApi{}, fmt.Errorf("error loading user ID: %w", err)
+		return PodPointAPI{}, fmt.Errorf("error loading user ID: %w", err)
 	}
 
 	return api, nil
 }
 
-func (api *PodPointApi) loadUserId() error {
-	if api.userId != 0 {
+func (api *PodPointAPI) loadUserID() error {
+	if api.userID != 0 {
 		return nil
 	}
 
-	l.Info("Fetching user ID")
+	slog.Info("fetching user ID")
 
 	req, err := api.getAuthedReqeust()
 	if err != nil {
 		return fmt.Errorf("error getting user ID: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/auth", podpointApiBaseUrl)
+	url := fmt.Sprintf("%s/auth", podpointAPIBaseURL)
 	res, err := req.Get(url)
 	if err != nil {
 		return fmt.Errorf("error getting user ID: %w", err)
@@ -77,7 +75,7 @@ func (api *PodPointApi) loadUserId() error {
 
 	type accountResponse struct {
 		User struct {
-			Id int `json:"id"`
+			ID int `json:"id"`
 		} `json:"users"`
 	}
 
@@ -87,15 +85,15 @@ func (api *PodPointApi) loadUserId() error {
 		return fmt.Errorf("error parsing account response: %w", err)
 	}
 
-	api.userId = resParsed.User.Id
+	api.userID = resParsed.User.ID
 
 	return nil
 }
 
-func (api *PodPointApi) GetPods() ([]Pod, error) {
-	l.Info("Fetching pods")
+func (api *PodPointAPI) GetPods() ([]Pod, error) {
+	slog.Info("fetching pods")
 
-	err := api.loadUserId()
+	err := api.loadUserID()
 	if err != nil {
 		return nil, fmt.Errorf("error getting pods: %w", err)
 	}
@@ -105,7 +103,7 @@ func (api *PodPointApi) GetPods() ([]Pod, error) {
 		return nil, fmt.Errorf("error getting pods: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/users/%d/pods?perpage=all&include=statuses,model,unit_connectors,charge_schedules,charge_override", podpointApiBaseUrl, api.userId)
+	url := fmt.Sprintf("%s/users/%d/pods?perpage=all&include=statuses,model,unit_connectors,charge_schedules,charge_override", podpointAPIBaseURL, api.userID)
 	res, err := req.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("error getting pods: %w", err)
@@ -131,13 +129,13 @@ func (api *PodPointApi) GetPods() ([]Pod, error) {
 	for id, pod := range resParsed.Pods {
 		pod.LastContactTime, err = time.Parse(time.RFC3339, pod.LastContactTimeStr)
 		if err != nil {
-			l.Warn("Error parsing contact timestamp", "raw", pod.LastContactTimeStr)
+			slog.Warn("error parsing contact timestamp", "raw", pod.LastContactTimeStr)
 		}
 
 		if pod.ChargeOveride != nil && pod.ChargeOveride.EndsAtStr != "" {
 			pod.ChargeOveride.EndsAt, err = time.Parse(time.RFC3339, pod.ChargeOveride.EndsAtStr)
 			if err != nil {
-				l.Warn("Error parsing override timestamp", "raw", pod.ChargeOveride.EndsAtStr)
+				slog.Warn("error parsing override timestamp", "raw", pod.ChargeOveride.EndsAtStr)
 			}
 		}
 
@@ -147,14 +145,14 @@ func (api *PodPointApi) GetPods() ([]Pod, error) {
 	return resParsed.Pods, nil
 }
 
-func (api *PodPointApi) getPlainReqeust() *resty.Request {
+func (api *PodPointAPI) getPlainReqeust() *resty.Request {
 	req := api.client.NewRequest()
 	req.SetHeader("content-type", "application/json; charset=UTF-8")
 
 	return req
 }
 
-func (api *PodPointApi) getAuthedReqeust() (*resty.Request, error) {
+func (api *PodPointAPI) getAuthedReqeust() (*resty.Request, error) {
 	err := api.loadAuthToken()
 
 	if err != nil {

@@ -29,7 +29,7 @@ type PodModel struct {
 	ID       int    `json:"id"`
 	Name     string `json:"name"`
 	Vendor   string `json:"vendor"`
-	ImageUrl string `json:"image_url"`
+	ImageURL string `json:"image_url"`
 }
 
 type PodStatus struct {
