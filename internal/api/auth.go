@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -106,7 +109,7 @@ func (api *PodPointAPI) loadAuthToken() error {
 }
 
 func (api *PodPointAPI) loadTokenViaLogin() error {
-	slog.Info("fetching new API token")
+	slog.Info("fetching new auth token")
 
 	payload := map[string]any{
 		"email":             api.s.PodPointUsername,
@@ -163,15 +166,17 @@ func (api *PodPointAPI) loadTokenViaLogin() error {
 }
 
 func (api *PodPointAPI) loadTokenViaRefresh() error {
-	slog.Info("refreshing API token")
+	slog.Info("refreshing auth token")
 
-	payload := fmt.Sprintf("grant_type=refresh_token&refresh_token=%s", api.refreshToken)
+	payload := url.Values{}
+	payload.Set("grant_type", "refresh_token")
+	payload.Set("refresh_token", api.refreshToken)
 
-	req, err := api.unauthedReqeust("POST", googleRefreshURL, bytes.NewReader([]byte(payload)))
+	req, err := api.unauthedReqeust("POST", googleRefreshURL, strings.NewReader(payload.Encode()))
 	if err != nil {
 		return fmt.Errorf("error logging in: %w", err)
 	}
-	req.Header.Add("content-type", "application/x-www-form-urlencoded")
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
 
 	res, err := api.client.Do(req)
 	if err != nil {
@@ -179,7 +184,8 @@ func (api *PodPointAPI) loadTokenViaRefresh() error {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("error refreshing auth token: %s", res.Status)
+		maybeBody, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("error refreshing auth token: %s (body: %s)", res.Status, string(maybeBody))
 	}
 
 	type refreshResponse struct {
