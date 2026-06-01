@@ -25,6 +25,6 @@ LABEL image.registry=ghcr.io
 LABEL org.opencontainers.image.description=""
 LABEL org.opencontainers.image.documentation=""
 LABEL org.opencontainers.image.title="pod-point-to-mqtt"
-LABEL org.opencontainers.image.url="https://github.com/markormesher/pod-point-to-mqtt"
+LABEL org.opencontainers.image.url=""
 LABEL org.opencontainers.image.vendor=""
 LABEL org.opencontainers.image.version=""
