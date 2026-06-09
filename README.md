@@ -1,4 +1,3 @@
-[![CircleCI](https://img.shields.io/circleci/build/github/markormesher/pod-point-to-mqtt)](https://app.circleci.com/pipelines/github/markormesher/pod-point-to-mqtt)
 [![Releases on GHCR](https://img.shields.io/badge/releases-ghcr.io-green)](https://ghcr.io/markormesher/pod-point-to-mqtt)
 
 # Pod-Point to MQTT
