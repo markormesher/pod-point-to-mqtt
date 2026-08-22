@@ -2,7 +2,7 @@ module github.com/markormesher/pod-point-to-mqtt
 
 go 1.26.0
 
-toolchain go1.26.6
+toolchain go1.27.0
 
 require github.com/eclipse/paho.mqtt.golang v1.5.1
 
